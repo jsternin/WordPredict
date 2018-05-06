@@ -1,0 +1,168 @@
+---
+title: "CapstoneProjectPrediction"
+author: "Jeff Sternin"
+date: "April 1, 2018"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(readtext)
+require(quanteda)
+require(stringi)
+require(ggplot2)
+options(warn = -1)
+MB <- (1024) * (1024)
+```
+
+
+
+
+## 1.1 Function , helpers: result  and ngram dfm
+
+```{r makeresult, echo = TRUE, include = TRUE}
+result <- function(obj) {
+  mem <- object.size(obj)/MB  
+  obj_name <- class(obj)[1]
+  print(sprintf("%s size: %5.1f Mb",obj_name,mem))
+}
+```
+
+
+```{r makengram, echo = TRUE, include = TRUE}
+dfm_ngram <- function(ngrm,tail=10)  {
+  print(sprintf("building dfms%d....",ngrm))
+  tokc <- tokens_ngrams(toks,n=ngrm,concatenator=" ")  ## ok use _
+  result(tokc)
+  dfm_res <-  tokc %>% dfm() %>% dfm_trim(min_count=tail)
+  result(dfm_res)
+  rm(tokc)
+  dfm_res
+}
+```
+
+
+## 2. Processing1 : corpus
+```{r make_corpus, echo = TRUE, include = TRUE}
+wd <- normalizePath(getwd(),winslash='\\',mustWork = NA)
+localFiles <- paste0(wd,"\\..\\Coursera-SwiftKey\\final\\en_US\\")
+system.time(all_data <- readtext(paste0(localFiles,"*.txt"),text_field = "texts"))
+system.time(all_data$text <- iconv(all_data$text, "latin1", "ASCII", sub="")) ## remove strange chars!!!!
+system.time(corp <- corpus(all_data))
+rm(all_data)
+saveRDS(corp,file="corp.rds")
+result(corp)
+
+```
+
+
+
+## 2.0 toks with stop words
+```{r make_toks_full, echo = TRUE, include = TRUE}
+system.time(toks <- corp %>% tokens(remove_punct=TRUE) %>% tokens_tolower())
+##rm(corp)
+saveRDS(toks,file="toksfull.rds")
+result(toks)
+```
+## 2.1 dfms1 with stop words (tail=15 - no less than 15 repetitions)
+```{r make_dmfs2, echo = TRUE, include = TRUE}
+system.time(dfms1 <- dfm_ngram(1,2)) ## 23MB
+saveRDS(dfms1,file="dfms1.rds")
+```
+
+
+## 2.2 dfms2 with stop words (tail=15 - no less than 15 repetitions)
+```{r make_dmfs2, echo = TRUE, include = TRUE}
+system.time(dfms2 <- dfm_ngram(2,15)) ## 39MB
+saveRDS(dfms2,file="dfms2.rds")
+```
+
+## 2.3 dfms3 with stop words (trigrams & tail=10)
+```{r make_dmfs3, echo = TRUE, include = TRUE}
+system.time(dfms3 <- dfm_ngram(3,10)) ## 58MB
+saveRDS(dfms3,file="dfms3.rds")
+```
+## 2.3 dfms4 with stop words (4-grams & tail=7)
+```{r make_dmfs4, echo = TRUE, include = TRUE}
+system.time(dfms4 <- dfm_ngram(4,7))  ## 40MB
+saveRDS(dfms4,file="dfms4.rds")
+```
+## 2.4 dfms5 with stop words (5-grams & tail=5)
+```{r make_dmfs5, echo = TRUE, include = TRUE}
+system.time(dfms5 <- dfm_ngram(5,5)) ## 21MB
+saveRDS(dfms5,file="dfms5.rds")
+```
+
+## 2.5 dfms6 with stop words (6-grams & tail=5)
+```{r make_dmfs6, echo = TRUE, include = TRUE}
+system.time(dfms6 <- dfm_ngram(6,3))
+saveRDS(dfms6,file="dfms6.rds")
+```
+
+
+```{r get_memory, include=FALSE}
+#print(object.size(x=lapply(ls(pattern="^dfm[1-3]"), get)), units="Mb")
+#print(object.size(x=lapply(ls(pattern="^dfm[4-6]"), get)), units="Mb")
+#print(object.size(x=lapply(ls(pattern="^dfms[2-3]"), get)), units="Mb")
+nfeat(dfms2);nfeat(dfms3);
+print(object.size(x=lapply(ls(pattern="^dfms[4-5"), get)), units="Mb")
+nfeat(dfms4);nfeat(dfms5);
+print(object.size(x=lapply(ls(pattern="^dfms6"), get)), units="Mb")
+nfeat(dfms6)
+```
+
+```{r clean tokens, echo = TRUE, include = TRUE}
+print("Removing tokens with stop words we make dfm2, and dfm3")
+rm(toks)
+```
+
+## 6. Processing - creating : toks
+
+```{r make_toks, echo = TRUE, include = TRUE}
+system.time(toks <- corp %>% 
+            tokens(remove_punct=TRUE) %>% 
+            tokens_tolower() %>%
+            tokens_select(stopwords('en'), selection = 'remove'))
+rm(corp)
+saveRDS(toks,file="toks.rds")
+result(toks)
+```
+
+## 7.Processing2 - creating : dfm1  
+
+```{r make_dmf1, echo = TRUE, include = TRUE}
+system.time(dfm1 <- toks %>% dfm() %>% dfm_trim(min_count=10))
+saveRDS(dfm1,file="dfm1.rds")
+result(dfm1)
+```
+
+## 8.Processing3 - creating : dfm2,dfm3,dfm4,dfm5,dfm6
+
+```{r make_dmf2, echo = TRUE, include = TRUE}
+system.time(dfm2 <- dfm_ngram(2))
+saveRDS(dfm2,file="dfm2.rds")
+```
+
+
+```{r make_dmf3, echo = TRUE, include = TRUE}
+system.time(dfm3 <- dfm_ngram(3,3))
+saveRDS(dfm3,file="dfm3.rds")
+```
+
+
+```{r make_dmf4, echo = TRUE, include = TRUE}
+system.time(dfm4 <- dfm_ngram(4,2))
+saveRDS(dfm4,file="dfm4.rds")
+```
+
+```{r make_dmf5, echo = TRUE, include = TRUE}
+system.time(dfm5 <- dfm_ngram(5,2))
+saveRDS(dfm5,file="dfm5.rds")
+```
+
+
+##```{r make_dmf6, echo = TRUE, include = TRUE}
+####system.time(dfm6 <- dfm_ngram(6))
+```
+
+
+## Processing 3

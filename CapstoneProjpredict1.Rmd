@@ -1,0 +1,467 @@
+---
+title: "CapstoneProjPrediction1"
+author: "Jeff Sternin"
+date: "April 10, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(quanteda)
+#stopWords <- stopwords('en')
+#rm_words<-function(string, words) {
+#  stopifnot(is.character(string), is.character(words))
+#  spltted <- strsplit(string, " ", fixed = TRUE) # fixed = TRUE for speedup
+#  vapply(spltted, function(x) paste(x[!tolower(x) %in% words], collapse = " "), character(1))
+#}
+```
+
+```{r load, echo = TRUE, include = TRUE}
+#dfm1 <- readRDS(file="dfm1.rds")
+if(FALSE) {
+  dfm2 <- readRDS(file="dfm2.rds")
+  dfm3 <- readRDS(file="dfm3.rds")
+  dfm4 <- readRDS(file="dfm4.rds")
+  dfm5 <- readRDS(file="dfm5.rds")
+  dfm6 <- readRDS(file="dfm6.rds")
+}
+##----
+dfms1 <- readRDS(file="dfms1.rds")
+dfms2 <- readRDS(file="dfms2.rds")
+dfms3 <- readRDS(file="dfms3.rds")
+dfms4 <- readRDS(file="dfms4.rds")
+dfms5 <- readRDS(file="dfms5.rds")
+dfms6 <- readRDS(file="dfms6.rds")
+```
+
+
+```{r check_load, echo = TRUE, include = TRUE}
+#class(dfm1)
+if(FALSE) {
+  class(dfm2)
+  class(dfm3)
+  class(dfm4)
+  class(dfm5)
+  class(dfm6)
+  print(object.size(x=lapply(ls(pattern="dfm[1-6]"), get)), units="Mb")
+}
+class(dfms1)
+class(dfms2)
+class(dfms3)
+class(dfms4)
+class(dfms5)
+class(dfms6)
+print(object.size(x=lapply(ls(pattern="dfms[1-6]"), get)), units="Mb")
+```
+
+```{r pred_prepare, echo = TRUE, include = TRUE}
+## process initial string - remove strange chars, tolower, remove punctuation
+## if necessary remove bad words (such as swear words)
+## without stop words
+prep<-function(str,stop_words) {
+  inStr <- iconv(str, "latin1", "ASCII", sub="");
+  ## stop_words == TRUE
+  str <- tokens(str, ngrams = 1) %>%
+       tokens_tolower() %>%
+       tokens(remove_punct=TRUE)
+
+  if (!stop_words)
+    str <- tokens_select(str, stopwords('en'), selection = 'remove')
+  str
+}
+
+```
+
+
+```{r check_test, echo = TRUE, include = TRUE}
+## backoff - get substring of n words from the end
+# n -length of ngram; returns higher number of in dfm
+strbo<-function(s,n) {
+  
+  len <- length(s) # len number of words
+  res <- "^"
+  if (n>1) {
+    res <- s[len - n + 2]
+    #print(sprintf("in strbo len: %d, s:%s res:%s",len, s,res))
+    if (n > 2) { # if only 2 words - no paste
+      for(i in (len - n + 3) : len)
+        res <- paste(res,s[i],sep=" ")
+    }
+    res <- paste0("^",res)
+  }
+  #res <- paste0(res," *")
+  #print(sprintf("in strbo res:%s",res))
+  res
+}
+
+```
+
+
+```{r do_selection, echo = TRUE, include = TRUE}
+## try to select substring from dfm 
+## if substring exists us it 
+select_from_dfm<-function(sx,i,stop_words=TRUE) {
+  
+  #print(sprintf("select_from_dfm i:%d, dfms%d, sx:%s",i,i,sx))
+  if (stop_words) {
+    switch(as.character(i),
+      "6" = dfmx <- dfm_select(dfms6,sx,selection="keep",valuetype="regex"),     
+      "5" = dfmx <- dfm_select(dfms5,sx,selection="keep",valuetype="regex"),
+      "4" = dfmx <- dfm_select(dfms4,sx,selection="keep",valuetype="regex"),
+      "3" = dfmx <- dfm_select(dfms3,sx,selection="keep",valuetype="regex"),
+      "2" = dfmx <- dfm_select(dfms2,sx,selection="keep",valuetype="regex"),
+      "1" = dfmx <- dfm_select(dfms1,sx,selection="keep",valuetype="regex"),
+      print(sprintf("i not found: %d %s",i,as.character(i)))
+      
+    )
+  }
+  else { ## we don't use it 
+    switch(as.character(i),
+      "6" = dfmx <- dfm_select(dfm6,sx,selection="keep",valuetype="regex"),
+      "5" = dfmx <- dfm_select(dfm5,sx,selection="keep",valuetype="regex"),
+      "4" = dfmx <- dfm_select(dfm4,sx,selection="keep",valuetype="regex"),
+      "3" = dfmx <- dfm_select(dfm3,sx,selection="keep",valuetype="regex"),
+      "2" = dfmx <- dfm_select(dfm2,sx,selection="keep",valuetype="regex"),
+      print(sprintf("i not found: %d %s",i,as.character(i)))
+    )
+  }
+  
+  #print(nfeat(dfmx))
+  dfmx
+  
+}
+```
+
+## 1. PREDICT WORD
+
+```{r predict_word, echo = TRUE, include = TRUE}
+predict_word<-function(str) {
+  if (nchar(str)==0)
+    return(data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE))
+  found <- FALSE
+  savestr <- str
+  # check aginst dfm with stop words present
+  for(i in seq(6,1,by=-1)) {
+    str <- savestr
+    str <- prep(str,TRUE)[[1]] ## str array of words from string
+    if(length(str) <= (i-2))
+      next
+    sx <- strbo(str,i)
+    dfmx <- select_from_dfm(sx,i,TRUE)
+    nfeat <- nfeat(dfmx)
+    if (nfeat == 0 )
+      next
+    nwords <- min(5,nfeat)
+    #print(sprintf("%d  %d",nfeat,nwords))
+    fre <- textstat_frequency(dfmx,nwords)
+    print(sprintf("phrase:%s",savestr))
+    for(k in 1:nwords) {
+      sres <- fre$feature[k]
+      if (i>1) {
+        pos <- regexpr("\ [^\ ]*$", sres)  ## last space
+        last_word <- substring(sres,pos[1]+1)         ###nchar(sx)+1) ## we skip over space and subtract ^
+      }
+      else
+        last_word <- sres
+      ncount <- fre$frequency[k]
+      if (k==1)
+        reswp <- data.frame(count=as.integer(ncount),word=as.character(last_word),stringsAsFactors=FALSE)
+      else
+        reswp <- reswp <- rbind(reswp,c(as.integer(ncount),as.character(last_word))) ##ff[fpos]
+    }
+    #print(sprintf("rows in resdf: %d ",nrow(resdf)))
+    if (nrow(reswp) >0) { ##word != "") {
+      print(sprintf("result found in dfms%d nrows:%d, count:%d top word:%s",
+            i, nrow(reswp),as.integer(reswp$count[1]),reswp$word[1]))
+      found <- TRUE
+      return(reswp)
+    }
+      
+  } 
+  if (!found) {
+    reswp <- data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE)
+    reswp
+  }
+  
+}
+reset_word<-function()
+{
+  reswp <- data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE)
+  reswp
+}
+```
+
+## 3. PREDICT CHAR-BY-CHAR
+```{r predict_char_by_char, echo = TRUE, include = TRUE}
+predict_word_char_by_char<-function(str,chars_str) { ## bchars if this is first
+  if (nchar(str)==0)
+    return(data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE))
+  if (nchar(chars_str)==0)
+    return (predict_word(str))
+  str1 <- sprintf("%s %s",str,chars_str)  
+  #print(str1)
+  found <- FALSE
+  savestr <- str1
+  # check aginst dfm with stop words present
+  for(i in seq(6,1,by=-1)) {
+    str1 <- savestr
+    str1 <- prep(str1,TRUE)[[1]] ## str array of words from string
+    if(length(str1) <= (i-2))
+      next
+    sx <- strbo(str1,i+1)
+    dfmx <- select_from_dfm(sx,i,TRUE)
+    nfeat <- nfeat(dfmx)
+    #print(nfeat)
+    if (nfeat == 0 )
+      next
+    #nwords <- min(5,nfeat)
+    #print(sprintf("%d  %d",nfeat,nwords))
+    fre <- textstat_frequency(dfmx,nfeat)
+    ff <- fre$feature
+    #print(sprintf("phrase:%s",sx))
+    poslist <- grep(sx,ff)
+    #print(poslist)
+    if (length(poslist)==0)
+      next
+    nwords <- min(5,length(poslist))
+    #print(nwords)
+    for(k in 1:nwords) {
+      ind <- poslist[k]
+      sres <- fre$feature[ind] ##  result string
+      #print(sprintf("sres:%s, lenghtsres:%d nchar_charsstr:%d",sres,length(sres),nchar(chars_str)))
+      if ( i > 1) {
+        pos <- regexpr("\ [^\ ]*$", sres)  ## last space
+        last_word <- substring(sres,pos[1]+1) 
+      }
+      else
+        last_word <- sres
+      #print(sprintf("sres:%s last:%s pos:%d",sres,last_word,pos[1]))
+      ncount <- fre$frequency[ind]
+      if (k==1)
+        reswp <- data.frame(count=as.integer(ncount),word=as.character(last_word),stringsAsFactors=FALSE)
+      else
+        reswp <- reswp <- rbind(reswp,c(as.integer(ncount),as.character(last_word))) ##ff[fpos]
+    }
+    #print(sprintf("rows in resdf: %d ",nrow(resdf)))
+    if (nrow(reswp) >0) { ##word != "") {
+      print(sprintf("result found in dfms%d nrows:%d, count:%d top word:%s",
+            i, nrow(reswp),as.integer(reswp$count[1]),reswp$word[1]))
+      found <- TRUE
+      return(reswp)
+    }
+      
+  } 
+  if (!found) {
+    reswp <- data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE)
+    reswp
+  }
+  
+}
+
+```
+
+## 2. FIND THE BEST HINT (QUIZ)
+
+```{r predict_find_answer, echo = TRUE, include = TRUE}
+## try to find if words exists in dmf 
+## if yes find the most probable
+find_answer<-function(str,answer,dfmx,i) {
+  nfeat <- nfeat(dfmx)
+  if (nfeat == 0 ) {
+    resdf <- data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE)
+    resdf
+  }
+  # check answer
+  fre <- textstat_frequency(dfmx,nfeat)
+  ff <- fre$feature
+  ##print(length(answer))
+  found<- FALSE
+  for(j in 1:length(answer)) { ## scan all words in test and find one with top position
+    sans <- paste0(answer[j],"$")
+    #sans <- sprintf(" %s$",answer[j]) ## entry ends with answer[j]
+    #print(sprintf("ans:%s sans:%s",answer[j],sans))
+    poslist <- grep(sans,ff)
+    if(length(poslist) == 0)
+      next
+    fpos <- poslist[[1]][1]
+    count <- fre$frequency[fpos]
+    if (fpos > 0)   {
+      #print(sprintf("found, position: %d, phrase: %s, match:%s",fpos,ff[fpos],answer[j]))
+      if (!found) {
+        resdf <- data.frame(count=as.integer(count),word=as.character(answer[j]),stringsAsFactors=FALSE) 
+        found<- TRUE
+      }
+      else
+        resdf <- rbind(resdf,c(as.integer(count),as.character(answer[j]))) ##ff[fpos]
+    }
+  }
+  if (found) { ##minpos > 0) {
+    resdf<-resdf[with(resdf,order(-as.integer(count))),]
+    #print(sprintf("result, top position: %d, best match:%s",as.integer(resdf$rank[1]),resdf$name[1]))
+    return(resdf)
+  }
+  resdf <- data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE)
+  resdf
+  
+}
+```
+
+
+
+
+```{r predict_quiz, echo = TRUE, include = TRUE}
+predict_quiz<-function(str,answer_str) {
+  if (nchar(str)==0 || nchar(answer_str) == 0) {
+    return(data.frame(count=as.integer(),word=as.character(),stringsAsFactors=FALSE))
+  }
+  ans <- tokens(answer_str, ngrams = 1) %>%
+       tokens_tolower() %>%
+       tokens(remove_punct=TRUE)
+  answer<- ans[[1]]
+  #print(sprintf("phrase:%s",str))
+  #print(sprintf("possible answers:%s",answer_str))
+  word <- ""
+  found <- FALSE
+  savestr <- str
+  # check aginst dfm with stop words present
+  
+  for(i in seq(6,1,by=-1)) {
+    str <- savestr
+    str <- prep(str,TRUE)[[1]] ## str array of words from string
+    #print(sprintf("in predict quiz: savestr: %s,str:%s",savestr,str))
+    if(length(str) <= (i-2))
+      next
+    sx <- strbo(str,i)
+    #print(sx)
+    dfmx <- select_from_dfm(sx,i,TRUE)
+    print(nfeat(dfmx))
+    resdf <- find_answer(str,answer,dfmx,i)
+    print(sprintf("rows in resdf: %d ",nrow(resdf)))
+    if (nrow(resdf) >0) { ##word != "") {
+      print(sprintf("result found in dfms%d nrows:%d, topcount:%d top word:%s",
+            i, nrow(resdf),as.integer(resdf$count[1]),resdf$word[1]))
+      found <- TRUE
+      return(resdf)
+     }
+  } 
+  if (!found) {
+    resdf <- data.frame(rank=as.integer(),name=as.character(),stringsAsFactors=FALSE)
+    resdf
+  }
+  if (FALSE) { # check aginst dfm with stop words removed
+    word <- ""
+    found<-FALSE
+    str <- savestr
+    for(i in seq(6,2,by=-1)) {
+      str <- savestr
+      str <- prep(str,FALSE)[[1]]
+      if(length(str) <= (i-2))
+        next
+      sx <- strbo(str,i)
+      dfmx <- select_from_dfm(str,i,FALSE)
+      word <- find_answer(str,answer,dfmx)
+      if (word != "") {
+        print(sprintf("result found in dfm%d, word:%s",i,word))
+        found <- TRUE
+        break
+      }
+    }
+  }
+  
+}
+
+```
+
+```{r do_quiz, echo = TRUE, include = TRUE}
+do_quiz<-function(quiz_name,q) {
+  print(quiz_name)
+  for(i in 1:length(q)) {
+    print(sprintf("**question: %d",i))
+    s <- unlist(q[[i]][1])
+    answer_str <- unlist(q[[i]][2])
+    #print(sprintf("answer string :%s",answer_str))
+    #print(sprintf("++searching for answer question...: %d",i))
+    predict_quiz(s,answer_str)
+  }  
+}
+```
+
+```{r test_predict_word, echo = TRUE, include = TRUE}
+#s <- "this is my presentation. Let me know what you"
+s <- "I like how the same people are in almost all of Adam Sandler's"
+#s <- "help me if you can i fe"
+reswp <- as.data.frame(predict_word(s))
+#print(nrow(reswp))
+for(k in 1: nrow(reswp)) {
+  print(sprintf("%d : count:%d word:%s",k,as.integer(reswp$count[k]),reswp$word[k]))
+}
+```
+
+```{r test_predict_charbychar, echo = TRUE, include = TRUE}
+#s <- "When you were in Holland you were like 1 inch away from me but you hadn't time to take a"
+#s <- "I like how the same people are in almost all of Adam Sandler's"
+s <- "help me if you can i'm"
+reswp <- as.data.frame(predict_word_char_by_char(s,"f"))
+#print(nrow(reswp))
+for(k in 1: nrow(reswp)) {
+  print(sprintf("%d : count:%d word:%s",k,as.integer(reswp$count[k]),reswp$word[k]))
+}
+```
+
+```{r predict_quiz2, echo = TRUE, include = TRUE}
+##QUIZ2
+
+q1 <- list(s ="The guy in front of me just bought a pound of bacon, a bouquet, and a case of",
+    ans= "pretzels soda cheese beer")
+ 
+q2 <- list("You're the reason why I smile everyday. Can you follow me please? It would mean the",
+    c("universe world best most"))
+q3 <- list("Hey sunshine, can you follow me and make me the",
+    c("bluest happiest smelliest saddest"))
+q4 <- list("Very early observations on the Bills game: Offense still struggling but the",
+    c("players crowd defense referees"))
+q5 <- list("Go on a romantic date at the",
+    c("mall beach grocery movies"))
+q6 <- list("Well I'm pretty sure my granny has some old bagpipes in her garage I'll dust them off and be on my",
+    c("motorcycle phone horse way"))
+q7 <- list("Ohhhhh #PointBreak is on tomorrow. Love that film and haven't seen it in quite some",
+    c("years thing time weeks"))
+q8 <- list("After the ice bucket challenge Louis will push his long wet hair out of his eyes with his little",
+    c("eyes toes ears fingers"))
+q9 <- list("Be grateful for the good times and keep the faith during the",
+    c("hard worse sad bad"))
+q10 <- list("If this isn't the cutest thing you've ever seen, then you must be",
+    c("insensitive callous insane asleep"))
+q <- list(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10)
+do_quiz("QUIZ 2",q)
+```
+```{r predict_quiz3, echo = TRUE, include = TRUE}
+##QUIZ3
+
+q1 <- list(s ="When you breathe, I want to be the air for you. I'll be there for you, I'd live and I'd",
+    ans=c("sleep eat die give"))
+
+q2 <- list(
+  "Guy at my table's wife got up to go to the bathroom and I asked about dessert and he started telling me about his",
+  c("horticultural financial spiritual marital"))
+q3 <- list("I'd give anything to see arctic monkeys this",
+    c("decade weekend month morning"))
+q4 <- list("Talking to your mom has the same effect as a hug and helps reduce your",
+    c("stress sleepiness happiness hunger"))
+q5 <- list("When you were in Holland you were like 1 inch away from me but you hadn't time to take a",
+    c("walk minute look picture"))
+q6 <- list("I'd just like all of these questions answered, a presentation of evidence, and a jury to settle the",
+    c("case incident matter account"))
+q7 <- list("I can't deal with unsymetrical things. I can't even hold an uneven number of bags of groceries in each",
+    c("toe arm hand finger"))
+q8 <- list("Every inch of you is perfect from the bottom to the",
+    c("top center middle side"))
+q9 <- list("I'm thankful my childhood was filled with imagination and bruises from playing",
+    c("outside weekly inside daily"))
+q10 <- list("I like how the same people are in almost all of Adam Sandler's",
+    c("stories pictures novels movies"))
+q <- list(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10)
+do_quiz("QUIZ 3",q)
+```
+
+
