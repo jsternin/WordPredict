@@ -1,0 +1,12 @@
+name: PredictWord
+title: PredictWord
+username:
+account: devdataproducts
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 334582
+bundleId: 1357782
+url: https://devdataproducts.shinyapps.io/PredictWord/
+when: 1525554314.85387
+asMultiple: FALSE
+asStatic: FALSE
