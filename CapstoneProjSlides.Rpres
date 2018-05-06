@@ -1,0 +1,76 @@
+JHU Capstone Project Slides - Word Prediction
+========================================================
+author: Jeff Sternin
+date: May 05, 2018
+autosize: false
+<style>
+.small-code pre code {
+  font-size: 1em;
+}
+</style>
+
+1.How application works.
+========================================================
+<small>
+Shiny application here: <https://devdataproducts.shinyapps.io/PredictWord/>.
+We offer 3 options for word prediction.To switch between options use navigation bar at the top. Examples of data are shown on the each option page.User can cut/paste them as a start.
+- **Predict Word**  
+  Type your sentence and press Submit button.User will see completed sentence with 
+  best prediction. Also shown up to five possible word matches.  
+- **Best from list**   
+  Type your sentence and list of possible completeions and press Submit. User will 
+  see completed sentence with best prediction from the list. 
+- **Predict char by char**  
+  Type your sentence.Press Submit.Then you can add one or more characters to
+  make completion precise.Press Submit every time you add new characters.
+</small>
+
+
+2.Algorithms, Loaded data and Results of the processing
+========================================================
+<small>
+We offer 2 algorithms for prediction. 
+Prediction algorithm is selected by radio button in each of 3 prediction options.  
+**1. longest backoff** :Find longest backoff (prefix) match and rank all 
+words with this prefix by counts of occurances. We show absolute counters for matches.  
+**2. "stupid" backoff**  [described here](http://www.aclweb.org/anthology/D07-1090.pdf)  
+Results show matches and probablity within same backoff.
+If prob.:1.00 - this is unique match, if prob. is small - many words have same prefix.  
+Loaded data: 6 preprocessed data.table that contains 1 to 6 n-grams used for back-off,
+n-gram counts and precalculated probabilities for "stupid backoff" algorithm.  
+RAM: ~200Mb RAM,Disk: ~20MB disk. Load Time ~10 sec. response time:~1sec.   
+Results for all 3 prediction options show best possible sentence completion.  
+**no match**  for 2nd option - **Best from list** means none of the hints fit.   
+</small>
+
+3.What went into loaded data tables
+========================================================
+<small>
+Original data corpus was 3 files in English - twitter,news,blogs. We process with   
+[quanteda package](http://docs.quanteda.io/index.html). 
+Original data were **unzip**  and processed with **ioconv** to remove non-latin characters.
+Then texts was processed with readtext and created corpus in **quanteda** meaning.  
+Corpus was tokenized using 1-6 words tokens. Six token arrays were created.  
+Each token array went into **dfm: document-feature matrix**   
+Each dfm were separately pruned using dfm_select to get size ~35-40Mb.  
+Here's minimum number of occurances went into each dfm.  
+dfms1 - means unigram... dfms6- means 6-grams.    
+**dfms1:2, dfms2:15, dfms3:10, dfms4:7, dfms5:5, dfms6:3.**   
+Stop words were originally removed but it had negative effect on prediction.
+Then we build dfms1-6 with stop words (s-means stop words.)
+Nothing else was removed (so called bad words - has tiny percentage)
+**dfms** contain n-grams and counters (frequences in quanteda terms).  
+From this we build 6 data.tables with prefixes, counters and precalculated 
+probablilites for "stupid"" backoff algorithm.  
+</small>
+
+4.Prediction quality description
+========================================================
+<small>
+The reason to create 3 prediction option was that it is obviously impossible to predict
+with any decent probability what some one wants to say no matter how many texts went into preprocessing. Numbers in litreture show best results quess less than 25%. Yet preprocessing of n-grams is very useful and became quite precise if user gives some hints of what he wants to say.  
+Option 2- **Best from list** based on course quiz, where user can offer several possible "hints" of completion.
+Option 3 - **Pridict Char-by-Char** seem the most useful because completion quickly converges as user adds one or two characters. Here all preprocessing with knowledge of probabilities (occurances) of each n-gram is really works. 
+This approach is used iPhones. It saves typing by help with tabs of word predictions.
+This was my rationale to offer 3 options of predictions.
+</small>
